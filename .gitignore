@@ -2,4 +2,6 @@ target/
 
 .venv/
 
+# Output files
 *_output.txt
+*.db

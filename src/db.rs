@@ -2,7 +2,16 @@
 //! Provide CRUD method for the vector database
 
 use crate::vector::{dot_product, l2_norm};
+use serde::{Serialize, Deserialize};
+use std:: { 
+    fs::File,
+    io::{
+        BufReader,
+        BufWriter,
+    }
+};
 
+#[derive(Serialize, Deserialize)]
 pub struct VecDB {
     ids: Vec<String>,
     vectors: Vec<f32>,
@@ -321,6 +330,79 @@ impl VecDB {
         let start = index * self.dimension.unwrap();
         &self.vectors[start..start+self.dimension.unwrap()]
     }
+
+    /// Saves the database to a file using bincode serialization.
+    ///
+    /// All vectors, IDs, and dimension metadata are serialized into a compact
+    /// binary format and written to disk using buffered I/O.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path to save the database to
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Database saved successfully
+    /// * `Err(String)` - Error if file creation or serialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use kvdb::VecDB;
+    ///
+    /// let mut db = VecDB::new();
+    /// db.insert("vec1".to_string(), vec![1.0, 2.0, 3.0]).unwrap();
+    /// db.save("my_database.db").unwrap();
+    /// ```
+    pub fn save(&self, path: &str) -> Result<(), String> {
+        let file = File::create(path)
+            .map_err(|e| format!("Fail to create file for saving '{}': {}", path, e))?;
+
+        let writer = BufWriter::new(file);
+        bincode::serialize_into(writer, self)
+            .map_err(|e| format!("Serialization failed: {}", e))?;
+    
+        Ok(())
+    }
+
+    /// Loads a database from a file previously saved with [`save`](VecDB::save).
+    ///
+    /// Deserializes the binary file back into a fully functional `VecDB` instance
+    /// with all vectors, IDs, and dimension metadata restored.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path to load the database from
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(VecDB)` - The loaded database
+    /// * `Err(String)` - Error if file not found, cannot be opened, or deserialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use kvdb::VecDB;
+    ///
+    /// let db = VecDB::load("my_database.db").unwrap();
+    /// println!("Loaded {} vectors", db.count());
+    /// ```
+    pub fn load(path: &str) -> Result<Self, String> {
+        if !std::path::Path::new(path).exists() {
+            return Err("File not found!".to_string());
+        }
+
+        let file = File::open(path)
+            .map_err(|e| format!("Fail to create file for saving '{}': {}", path, e))?;
+
+        let reader = BufReader::new(file);
+
+        let db: VecDB = bincode::deserialize_from(reader)
+            .map_err(|e| format!("Deserialization failed: {}", e))?;
+
+        Ok(db)
+    
+    }
 }
 
 #[cfg(test)]
@@ -466,28 +548,6 @@ mod db_test {
         assert!(result.is_none());
     }
 
-    #[test]
-    fn test_get_multiple_vectors() {
-        let mut db = VecDB::new();
-        db.insert("vec1".to_string(), vec![1.0, 0.0, 0.0]).unwrap();
-        db.insert("vec2".to_string(), vec![0.0, 1.0, 0.0]).unwrap();
-        db.insert("vec3".to_string(), vec![0.0, 0.0, 1.0]).unwrap();
-
-        // Get middle vector
-        let v2 = db.get("vec2").unwrap();
-        assert_eq!(v2.len(), 3);
-        assert!((v2[0] - 0.0).abs() < 1e-5);
-        assert!((v2[1] - 1.0).abs() < 1e-5);
-        assert!((v2[2] - 0.0).abs() < 1e-5);
-
-        // Get first vector
-        let v1 = db.get("vec1").unwrap();
-        assert!((v1[0] - 1.0).abs() < 1e-5);
-
-        // Get last vector
-        let v3 = db.get("vec3").unwrap();
-        assert!((v3[2] - 1.0).abs() < 1e-5);
-    }
 
     // ========== Delete Tests ==========
 
@@ -624,5 +684,104 @@ mod db_test {
         let vec = db.get("vec1").unwrap();
         // Normalized [3,4] = [0.6, 0.8]
         assert!((vec[0] - 0.6).abs() < 1e-5);
+    }
+
+    // ========== Save/Load Tests ==========
+
+    #[test]
+    fn test_save_and_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let path_str = path.to_str().unwrap();
+
+        let mut db = VecDB::new();
+        db.insert("vec1".to_string(), vec![1.0, 0.0, 0.0]).unwrap();
+        db.insert("vec2".to_string(), vec![0.0, 1.0, 0.0]).unwrap();
+        db.insert("vec3".to_string(), vec![0.0, 0.0, 1.0]).unwrap();
+
+        db.save(path_str).unwrap();
+
+        let loaded = VecDB::load(path_str).unwrap();
+        assert_eq!(loaded.count(), 3);
+        assert_eq!(loaded.dimension, Some(3));
+
+        // Verify vectors are preserved
+        let v1 = loaded.get("vec1").unwrap();
+        assert!((v1[0] - 1.0).abs() < 1e-5);
+        assert!((v1[1] - 0.0).abs() < 1e-5);
+
+        let v2 = loaded.get("vec2").unwrap();
+        assert!((v2[1] - 1.0).abs() < 1e-5);
+
+        let v3 = loaded.get("vec3").unwrap();
+        assert!((v3[2] - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_save_and_load_empty_db() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.db");
+        let path_str = path.to_str().unwrap();
+
+        let db = VecDB::new();
+        db.save(path_str).unwrap();
+
+        let loaded = VecDB::load(path_str).unwrap();
+        assert_eq!(loaded.count(), 0);
+        assert_eq!(loaded.dimension, None);
+    }
+
+    #[test]
+    fn test_load_nonexistent_file() {
+        match VecDB::load("nonexistent_file.db") {
+            Err(e) => assert!(e.contains("File not found")),
+            Ok(_) => panic!("Expected error for nonexistent file"),
+        }
+    }
+
+    #[test]
+    fn test_save_load_preserves_search() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("search.db");
+        let path_str = path.to_str().unwrap();
+
+        let mut db = VecDB::new();
+        db.insert("vec1".to_string(), vec![1.0, 0.0]).unwrap();
+        db.insert("vec2".to_string(), vec![0.0, 1.0]).unwrap();
+        db.insert("vec3".to_string(), vec![0.7, 0.7]).unwrap();
+
+        db.save(path_str).unwrap();
+        let loaded = VecDB::load(path_str).unwrap();
+
+        // Search on loaded db should return same results
+        let results = loaded.search(vec![1.0, 0.0], 2).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].0, "vec1");
+        assert!((results[0].2 - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_save_overwrite() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("overwrite.db");
+        let path_str = path.to_str().unwrap();
+
+        // Save first version
+        let mut db = VecDB::new();
+        db.insert("old".to_string(), vec![1.0, 0.0]).unwrap();
+        db.save(path_str).unwrap();
+
+        // Save second version to same path
+        let mut db2 = VecDB::new();
+        db2.insert("new1".to_string(), vec![1.0, 0.0, 0.0]).unwrap();
+        db2.insert("new2".to_string(), vec![0.0, 1.0, 0.0]).unwrap();
+        db2.save(path_str).unwrap();
+
+        // Load should get the second version
+        let loaded = VecDB::load(path_str).unwrap();
+        assert_eq!(loaded.count(), 2);
+        assert!(loaded.get("old").is_none());
+        assert!(loaded.get("new1").is_some());
+        assert!(loaded.get("new2").is_some());
     }
 }

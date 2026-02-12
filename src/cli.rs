@@ -1,4 +1,6 @@
 use std::env;
+use std::io::{self, Write};
+use kvdb::VecDB;
 
 pub enum Command {
     Insert { id: String, vec: Vec<f32> },
@@ -7,19 +9,15 @@ pub enum Command {
     List,
     Count,
     Delete { id: String },
-}
-
-/// Parse command-line arguments into a Command
-pub fn parse_args() -> Result<Command, String> {
-    let args: Vec<String> = env::args().collect();
-    parse_command_from_args(&args)
+    Save { path: String },
+    Load { path: String },
 }
 
 /// Parse a command from a provided argument vector
 /// This is used both for command-line args and REPL input
 pub fn parse_command_from_args(args: &[String]) -> Result<Command, String> {
     if args.len() < 2 {
-        return Err("No command provided. Use: get, insert, search, list, count, delete".to_string());
+        return Err("No command provided. Use: get, insert, search, list, count, delete, save, load".to_string());
     }
 
     let command = &args[1];
@@ -31,7 +29,9 @@ pub fn parse_command_from_args(args: &[String]) -> Result<Command, String> {
         "list" => parse_list(&args),
         "count" => parse_count(&args),
         "delete" => parse_delete(&args),
-        _ => Err(format!("Unknown command: {}. Available: get, insert, search, list, count, delete", command)),
+        "save" => parse_save(&args),
+        "load" => parse_load(&args),
+        _ => Err(format!("Unknown command: {}. Available: get, insert, search, list, count, delete, save, load", command)),
     }
 }
 
@@ -151,4 +151,208 @@ fn parse_delete(args: &[String]) -> Result<Command, String> {
     }
     let id = args[2].clone();
     Ok(Command::Delete { id })
+}
+
+/// Parse the 'save' command
+/// Usage: kvdb save <path>
+fn parse_save(args: &[String]) -> Result<Command, String> {
+    if args.len() < 3 {
+        return Err("'save' command requires a file path. Usage: save <path>".to_string());
+    }
+    let path = args[2].clone();
+    Ok(Command::Save { path })
+}
+
+/// Parse the 'load' command
+/// Usage: kvdb load <path>
+fn parse_load(args: &[String]) -> Result<Command, String> {
+    if args.len() < 3 {
+        return Err("'load' command requires a file path. Usage: load <path>".to_string());
+    }
+    let path = args[2].clone();
+    Ok(Command::Load { path })
+}
+
+/// REPL mode - interactive session with persistent database
+pub fn run_repl(db: &mut VecDB) {
+    println!("KVDB - Vector Database");
+    println!("Type 'help' for commands, 'exit' or 'quit' to quit\n");
+
+    loop {
+        print!("kvdb> ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(_) => {}
+            Err(error) => {
+                eprintln!("Error reading input: {}", error);
+                continue;
+            }
+        }
+
+        let input = input.trim();
+        if input.is_empty() {
+            continue;
+        }
+
+        if input == "exit" || input == "quit" {
+            println!("Goodbye!");
+            break;
+        }
+
+        if input == "help" {
+            print_help();
+            continue;
+        }
+
+        let mut args: Vec<String> = vec!["kvdb".to_string()];
+        args.extend(input.split_whitespace().map(|s| s.to_string()));
+
+        let command = match parse_command_from_args(&args) {
+            Ok(cmd) => cmd,
+            Err(error) => {
+                eprintln!("Error: {}", error);
+                continue;
+            }
+        };
+
+        execute_command(db, command);
+    }
+}
+
+/// Single-command mode - load db from path, execute command, save back
+/// Usage: kvdb <db_path> <command> [args...]
+pub fn run_single_command() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 3 {
+        eprintln!("Usage: kvdb <db_path> <command> [args...]");
+        std::process::exit(1);
+    }
+
+    let db_path = &args[1];
+
+    // Load existing db or create new
+    let mut db = if std::path::Path::new(db_path).exists() {
+        match VecDB::load(db_path) {
+            Ok(loaded) => loaded,
+            Err(e) => {
+                eprintln!("Error loading '{}': {}", db_path, e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        VecDB::new()
+    };
+
+    // Rebuild args: shift so args[1] becomes the command
+    let shifted_args: Vec<String> = std::iter::once(args[0].clone())
+        .chain(args[2..].iter().cloned())
+        .collect();
+
+    let command = match parse_command_from_args(&shifted_args) {
+        Ok(cmd) => cmd,
+        Err(error) => {
+            eprintln!("Error: {}", error);
+            std::process::exit(1);
+        }
+    };
+
+    execute_command(&mut db, command);
+
+    // Save db back to path
+    if let Err(e) = db.save(db_path) {
+        eprintln!("Error saving '{}': {}", db_path, e);
+        std::process::exit(1);
+    }
+}
+
+fn execute_command(db: &mut VecDB, command: Command) {
+    match command {
+        Command::Get { id } => {
+            match db.get(&id) {
+                Some(vector) => println!("Vector '{}': {:?}", id, vector),
+                None => eprintln!("Error: Vector '{}' not found", id),
+            }
+        }
+
+        Command::List => {
+            let vectors = db.list();
+            if vectors.is_empty() {
+                println!("Database is empty");
+            } else {
+                println!("Stored vectors:");
+                for (id, vec) in vectors {
+                    println!("  {}: {:?}", id, vec);
+                }
+                println!("Total: {} vectors", db.count());
+            }
+        }
+
+        Command::Count => println!("{}", db.count()),
+
+        Command::Insert { id, vec } => {
+            match db.insert(id.clone(), vec) {
+                Ok(message) => println!("{}", message),
+                Err(error) => eprintln!("Error: {}", error),
+            }
+        }
+
+        Command::Search { vec, k_top } => {
+            match db.search(vec, k_top) {
+                Ok(results) => {
+                    if results.is_empty() {
+                        println!("No results found");
+                    } else {
+                        println!("Top {} results:", results.len());
+                        for (rank, (id, vector, score)) in results.iter().enumerate() {
+                            println!("{}. ID: {}, Score: {:.4}, Vector: {:?}",
+                                rank + 1, id, score, vector);
+                        }
+                    }
+                }
+                Err(error) => eprintln!("Error: {}", error),
+            }
+        }
+
+        Command::Delete { id } => {
+            match db.delete(&id) {
+                Ok(message) => println!("{}", message),
+                Err(error) => eprintln!("Error: {}", error),
+            }
+        }
+
+        Command::Save { path } => {
+            match db.save(&path) {
+                Ok(()) => println!("Database saved to '{}'", path),
+                Err(error) => eprintln!("Error: {}", error),
+            }
+        }
+
+        Command::Load { path } => {
+            match VecDB::load(&path) {
+                Ok(loaded_db) => {
+                    let count = loaded_db.count();
+                    *db = loaded_db;
+                    println!("Database loaded from '{}' ({} vectors)", path, count);
+                }
+                Err(error) => eprintln!("Error: {}", error),
+            }
+        }
+    }
+}
+
+fn print_help() {
+    println!("Available commands:");
+    println!("  insert <id> <v1> <v2> ...        - Insert a vector");
+    println!("  search <v1> <v2> ... [--k_top N] - Search for similar vectors (default k=5)");
+    println!("  get <id>                         - Retrieve a vector by ID");
+    println!("  list                             - List all vectors");
+    println!("  count                            - Show vector count");
+    println!("  delete <id>                      - Delete a vector");
+    println!("  save <path>                      - Save database to file");
+    println!("  load <path>                      - Load database from file");
+    println!("  help                             - Show this help");
+    println!("  exit, quit                       - Exit the program");
 }

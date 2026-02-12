@@ -27,7 +27,7 @@ pub fn l2_norm(vector: &[f32]) -> Result<Vec<f32>, String> {
 }
 
 /// Dot Product
-/// dot_prod = sum(a[i] * b[i]) for i = 0..a.len()
+/// dot_prod = sum(a'\[i\] * b\[i\]) for i = 0..a.len()
 /// Can only process vectors with same dimensions
 pub fn dot_product(left: &[f32], right: &[f32]) -> Result<f32, String> {
     if left.len() != right.len() {

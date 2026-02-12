@@ -4,231 +4,191 @@ A simple, learning-focused vector database implementation in Rust. **Kantan** (�
 
 ## Overview
 
-kvdb is an educational project that implements a working vector database from scratch. It demonstrates fundamental concepts like vector normalization, similarity search, and efficient storage - perfect for learning how vector databases work under the hood.
+kvdb is an educational project that implements a working vector database from scratch. It demonstrates fundamental concepts like vector normalization, similarity search, and persistent storage - perfect for learning how vector databases work under the hood.
 
-**Current Status**: v1.0 - In-memory implementation with CLI interface
+**Current Status**: v2.0 - Persistent storage with bincode serialization
 
 ## Features
 
-### ✅ Implemented
 - **L2 Vector Normalization**: Automatic normalization on insertion
 - **Cosine Similarity Search**: Using dot product on normalized vectors
 - **Flat Array Storage**: Memory-efficient contiguous storage with excellent cache locality
-- **REPL & CLI Modes**: Interactive shell or single-command (not meaningful before persistency) execution
+- **Persistence**: Save/load databases to disk with bincode binary format
 - **Library-First Architecture**: Core logic separated from interface for future extensibility
-- **Comprehensive Testing**: Unit tests for all core operations
+- **Comprehensive Testing**: Unit tests + end-to-end persistence tests
 
-### Core Operations
-- `insert` - Add vectors with unique IDs
-- `search` - Find k most similar vectors
-- `get` - Retrieve vector by ID
-- `list` - Display all stored vectors
-- `count` - Show database size
-- `delete` - Remove vector by ID
+## Installation
+
+### Prerequisites
+- Rust (2024 edition)
+
+### Build
+```bash
+git clone https://github.com/Kurotsuba/kvdb.git
+cd kvdb
+
+cargo build --release
+cargo test
+```
+
+## Library Usage
+
+```rust
+use kvdb::VecDB;
+
+let mut db = VecDB::new();
+
+// Insert vectors (automatically L2-normalized)
+db.insert("doc1".to_string(), vec![1.0, 0.0, 0.0]).unwrap();
+db.insert("doc2".to_string(), vec![0.0, 1.0, 0.0]).unwrap();
+db.insert("doc3".to_string(), vec![0.7, 0.7, 0.0]).unwrap();
+
+// Search for k most similar vectors
+let results = db.search(vec![1.0, 1.0, 0.0], 2).unwrap();
+for (id, _vector, score) in results {
+    println!("{}: similarity = {:.4}", id, score);
+}
+
+// Retrieve by ID
+let vec = db.get("doc1").unwrap();
+
+// Delete
+db.delete("doc2").unwrap();
+
+// Count
+println!("{} vectors", db.count());
+
+// Persist to disk
+db.save("my_database.db").unwrap();
+
+// Load from disk
+let db = VecDB::load("my_database.db").unwrap();
+```
+
+## CLI / REPL
+
+kvdb includes a command-line interface for interactive use.
+
+### REPL Mode
+```bash
+./target/release/kvdb
+
+kvdb> insert vec1 1.0 0.0 0.0
+kvdb> insert vec2 0.0 1.0 0.0
+kvdb> search 0.7 0.7 0.0 --k_top 2
+kvdb> save my_data.db
+kvdb> load my_data.db
+kvdb> count
+kvdb> get vec1
+kvdb> delete vec1
+kvdb> list
+kvdb> help
+kvdb> exit
+```
+
+### Single-Command Mode
+```bash
+# Usage: kvdb <db_path> <command> [args...]
+# Automatically loads the database (or creates new), executes, and saves back.
+
+./target/release/kvdb data.db insert vec1 1.0 2.0 3.0
+./target/release/kvdb data.db search 1.0 2.0 3.0 --k_top 5
+./target/release/kvdb data.db count
+./target/release/kvdb data.db list
+```
 
 ## Architecture
-
-### Design Principles
-**Library-First Design** for easy interface swapping:
 
 ```
 src/
 ├── lib.rs       # Public API (VecDB)
 ├── vector.rs    # Vector math (L2 norm, dot product)
-├── db.rs        # Core database logic
-├── cli.rs       # CLI command parsing
+├── db.rs        # Core database logic + persistence
+├── cli.rs       # CLI parsing, REPL, command execution
 └── main.rs      # Entry point
 ```
 
-This architecture enables:
-- ✅ Testing core logic independently of CLI
-- ✅ Easy addition of HTTP API, gRPC, or other interfaces
-- ✅ Clean dependency boundaries
-- ✅ Future Lambda deployment with minimal changes
-
 ### Storage Strategy
-**Flat Array Storage** for optimal performance:
 - All vectors stored contiguously: `[v1_d1, v1_d2, ..., v2_d1, v2_d2, ...]`
 - Parallel ID array: `["vec1", "vec2", ...]`
 - Excellent memory locality for cache efficiency
 - SIMD-friendly layout for future optimizations
 
-## Installation
+### Persistence
+- Bincode binary serialization via serde
+- Buffered I/O for efficient read/write
 
-### Prerequisites
-- Rust 1.70+ (2024 edition)
-- Python 3.8+ (for benchmarking)
+## Performance
 
-### Build
-```bash
-# Clone the repository
-git clone <your-repo-url>
-cd kvdb
+### Complexity
+| Operation | Time | Space |
+|-----------|------|-------|
+| Insert | O(d) | O(d) |
+| Search | O(n*d) | O(k) |
+| Get | O(n) | O(d) |
+| Delete | O(n*d) | O(1) |
+| Save | O(n*d) | O(1) |
+| Load | O(n*d) | O(n*d) |
 
-# Build release binary
-cargo build --release
+Where n = number of vectors, d = dimension, k = top_k results.
 
-# Run tests
-cargo test
+### Benchmarks (100K vectors, 768-dim)
+```
+Insertion:  ~12,000 inserts/sec
+Search:     ~22 searches/sec (brute-force)
+Save:       ~0.3s (294 MB)
+Load:       ~0.2s
 ```
 
-## Usage
+## Examples
 
-### Interactive REPL Mode
-```bash
-# Start REPL
-./target/release/kvdb
+The `examples/` directory contains standalone scripts for demonstration:
 
-kvdb> insert vec1 1.0 0.0 0.0
-Inserted to database with id
-
-kvdb> insert vec2 0.0 1.0 0.0
-Inserted to database with id
-
-kvdb> search 0.7 0.7 0.0 --k_top 2
-Top 2 results:
-1. ID: vec2, Score: 0.7071, Vector: [0.0, 1.0, 0.0]
-2. ID: vec1, Score: 0.7071, Vector: [1.0, 0.0, 0.0]
-
-kvdb> count
-2
-
-kvdb> exit
-Goodbye!
-```
-
-### Single-Command Mode (*not yet meaningful*)
-```bash
-# Insert a vector
-./target/release/kvdb insert vec1 1.0 2.0 3.0
-
-# Search for similar vectors
-./target/release/kvdb search 1.0 2.0 3.0 --k_top 5
-
-# Get a specific vector
-./target/release/kvdb get vec1
-
-# Show all vectors
-./target/release/kvdb list
-
-# Delete a vector
-./target/release/kvdb delete vec1
-```
-
-### Library Usage
-```rust
-use kvdb::VecDB;
-
-fn main() {
-    let mut db = VecDB::new();
-
-    // Insert vectors (automatically normalized)
-    db.insert("doc1".to_string(), vec![1.0, 0.0, 0.0]).unwrap();
-    db.insert("doc2".to_string(), vec![0.0, 1.0, 0.0]).unwrap();
-    db.insert("doc3".to_string(), vec![0.7, 0.7, 0.0]).unwrap();
-
-    // Search for similar vectors
-    let results = db.search(vec![1.0, 1.0, 0.0], 2).unwrap();
-
-    for (id, vector, score) in results {
-        println!("{}: similarity = {:.4}", id, score);
-    }
-}
-```
-
-## Benchmarking
-
-Run performance benchmarks:
+- `gen_demo.rs` - Generate 100K random 768-d vectors and save to demo.db
+- `demo_operations.rs` - Run search, insert, delete operations against demo.db
+- `embed_wikipedia.rs` - Embed Wikipedia descriptions with BERT (BAAI/bge-base-en-v1.5, 768-dim) using candle
+- `demo_semantic_search.rs` - Semantic search CLI over wikipedia.db
+- `fetch_wikipedia.py` - Fetch 100K random Wikipedia pages (title + description)
 
 ```bash
-# Install Python dependencies
-pip install numpy
+# Generate demo database
+cargo run --release --example gen_demo
 
-# Run benchmark (100k vectors, 786 dimensions, 100 searches)
-python3 benchmark.py
+# Run operations against it
+cargo run --release --example demo_operations
+
+# Semantic search (requires wikipedia.db from embed_wikipedia)
+cargo run --release --example demo_semantic_search -- "famous physicist"
 ```
-
-Example output:
-```
-Database size: 100,000 vectors
-Vector dimension: 786
-
-Insertion Performance:
-  Total time: 8.234 seconds
-  Throughput: 12,144.23 inserts/sec
-  Average per insert: 0.082 ms
-
-Search Performance (100 random searches):
-  Average per search: 45.123 ms
-  Throughput: 22.16 searches/sec
-```
-
-## Performance Characteristics
-
-### Time Complexity
-- **Insert**: O(d) - where d is vector dimension
-- **Search**: O(n·d) - linear scan through n vectors
-- **Get**: O(n) - linear search by ID
-- **Delete**: O(n·d) - find + remove from flat array
-
-### Space Complexity
-- **Storage**: O(n·d) - flat array storage
-- **Memory Overhead**: Minimal (just ID strings + dimension metadata)
-
-### Current Limitations (v1)
-- **No Persistence**: In-memory only, data lost on exit
-- **Linear Search**: No indexing (HNSW, IVF, etc.)
-- **Single-Threaded**: No concurrent operations
-- **No Quantization**: Full precision f32 storage
 
 ## Roadmap
 
-### 🚧 TODO
+### Completed
+- [x] Core CRUD operations
+- [x] L2 normalization + cosine similarity
+- [x] REPL and CLI modes
+- [x] Persistence (bincode serialization)
 
-**v1.1 - Persistence**
-- [ ] File-based storage (MessagePack/Bincode)
-- [ ] Save/load operations
-- [ ] Incremental updates
+### TODO
 
-**v2.0 - HTTP API**
+**v3.0 - HTTP API**
 - [ ] REST API with Axum/Actix
 - [ ] JSON request/response
-- [ ] API documentation (OpenAPI)
 - [ ] Concurrent request handling
 
-**v3.0 - Optimizations**
-- [ ] HNSW (Hierarchical Navigable Small World) indexing
-- [ ] Product Quantization for compression
+**v4.0 - Optimizations**
+- [ ] HNSW indexing
+- [ ] Product Quantization
 - [ ] SIMD-accelerated dot product
 - [ ] Parallel search with Rayon
 - [ ] Memory-mapped file support
 
-
-## Learning Resources
-
-This project demonstrates several key concepts:
-
-1. **Vector Similarity Search**: Understanding cosine similarity via dot product
-2. **Memory Layout**: Cache-friendly data structures
-3. **Library Design**: Separation of concerns, clean APIs
-4. **Rust Patterns**: Error handling, ownership, zero-cost abstractions
-5. **Testing**: Unit tests, integration tests, benchmarking
-
-
 ## License
 
-MIT License - feel free to use this for learning and experimentation.
+MIT License - Copyright (c) 2026 Kurotsuba
 
-## Acknowledgments
-
-Built as a learning project to understand:
-- Vector database internals
-- Rust systems programming
-- Performance optimization techniques
-- Library design patterns
-
-**Note**: This is an educational implementation. For production use, consider mature solutions like [Qdrant](https://qdrant.tech/), [Milvus](https://milvus.io/), or [Weaviate](https://weaviate.io/).
+See [LICENSE](LICENSE) for details.
 
 ---
 
-*Kantan (簡単) - Simple, but complete enough to learn from.* 🚀
+*Kantan (簡単) - Simple, but complete enough to learn from.*
