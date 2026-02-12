@@ -35,6 +35,7 @@ jobs:
         run: cargo test
 
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,3 +59,9 @@ jobs:
 
       - name: Build release
         run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: kvdb-x86_64-linux
+          path: target/x86_64-unknown-linux-gnu/release/kvdb
