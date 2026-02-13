@@ -28,18 +28,22 @@ fn main() {
         }
     }
     let insert_time = start.elapsed();
-    println!("Insert: {:.3}s ({:.0} inserts/s)\n",
+    println!(
+        "Insert: {:.3}s ({:.0} inserts/s)\n",
         insert_time.as_secs_f64(),
-        num_vectors as f64 / insert_time.as_secs_f64());
+        num_vectors as f64 / insert_time.as_secs_f64()
+    );
 
     println!("Saving to '{}'...", path);
     let start = Instant::now();
     db.save(path).unwrap();
     let save_time = start.elapsed();
     let file_size = std::fs::metadata(path).unwrap().len();
-    println!("Save: {:.3}s (file size: {:.2} MB)",
+    println!(
+        "Save: {:.3}s (file size: {:.2} MB)",
         save_time.as_secs_f64(),
-        file_size as f64 / 1_048_576.0);
+        file_size as f64 / 1_048_576.0
+    );
 
     println!("\nDone! Load it with: kvdb> load demo.db");
 }

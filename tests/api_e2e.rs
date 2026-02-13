@@ -3,7 +3,7 @@ use reqwest::Client;
 use serde_json::json;
 use std::net::TcpListener;
 use tempfile::TempDir;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 /// Find a free port by binding to port 0
 fn free_port() -> u16 {
@@ -15,7 +15,12 @@ fn free_port() -> u16 {
 async fn test_insert_and_search() {
     let port = free_port();
     let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("test.db").to_str().unwrap().to_string();
+    let db_path = temp_dir
+        .path()
+        .join("test.db")
+        .to_str()
+        .unwrap()
+        .to_string();
 
     // Start server in background
     let server = HttpServer::new(|| App::new().configure(kvdb::server::config))
@@ -75,7 +80,12 @@ async fn test_insert_and_search() {
 async fn test_get_existing_and_missing() {
     let port = free_port();
     let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("test.db").to_str().unwrap().to_string();
+    let db_path = temp_dir
+        .path()
+        .join("test.db")
+        .to_str()
+        .unwrap()
+        .to_string();
 
     let server = HttpServer::new(|| App::new().configure(kvdb::server::config))
         .bind(format!("127.0.0.1:{}", port))
@@ -129,7 +139,12 @@ async fn test_get_existing_and_missing() {
 async fn test_delete_and_verify() {
     let port = free_port();
     let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("test.db").to_str().unwrap().to_string();
+    let db_path = temp_dir
+        .path()
+        .join("test.db")
+        .to_str()
+        .unwrap()
+        .to_string();
 
     let server = HttpServer::new(|| App::new().configure(kvdb::server::config))
         .bind(format!("127.0.0.1:{}", port))
@@ -194,7 +209,12 @@ async fn test_delete_and_verify() {
 async fn test_insert_duplicate_id() {
     let port = free_port();
     let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("test.db").to_str().unwrap().to_string();
+    let db_path = temp_dir
+        .path()
+        .join("test.db")
+        .to_str()
+        .unwrap()
+        .to_string();
 
     let server = HttpServer::new(|| App::new().configure(kvdb::server::config))
         .bind(format!("127.0.0.1:{}", port))
@@ -254,7 +274,12 @@ async fn test_insert_duplicate_id() {
 async fn test_search_empty_db() {
     let port = free_port();
     let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("empty.db").to_str().unwrap().to_string();
+    let db_path = temp_dir
+        .path()
+        .join("empty.db")
+        .to_str()
+        .unwrap()
+        .to_string();
 
     let server = HttpServer::new(|| App::new().configure(kvdb::server::config))
         .bind(format!("127.0.0.1:{}", port))

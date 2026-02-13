@@ -21,9 +21,9 @@
 //! assert_eq!(results[0].0, "vec1"); // Most similar vector
 //! ```
 
-pub mod vector;
-pub mod server;
 mod db;
+pub mod server;
+pub mod vector;
 
 // Re-export VecDB as the primary public API
 pub use db::VecDB;

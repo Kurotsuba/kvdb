@@ -2,13 +2,10 @@
 //! Provide CRUD method for the vector database
 
 use crate::vector::{dot_product, l2_norm};
-use serde::{Serialize, Deserialize};
-use std:: { 
+use serde::{Deserialize, Serialize};
+use std::{
     fs::File,
-    io::{
-        BufReader,
-        BufWriter,
-    }
+    io::{BufReader, BufWriter},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -16,6 +13,12 @@ pub struct VecDB {
     ids: Vec<String>,
     vectors: Vec<f32>,
     dimension: Option<usize>,
+}
+
+impl Default for VecDB {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl VecDB {
@@ -33,7 +36,11 @@ impl VecDB {
     /// assert_eq!(db.count(), 0);
     /// ```
     pub fn new() -> VecDB {
-        VecDB { ids: Vec::new(), vectors: Vec::new(), dimension: None }
+        VecDB {
+            ids: Vec::new(),
+            vectors: Vec::new(),
+            dimension: None,
+        }
     }
 
     /// Inserts or updates a vector in the database.
@@ -80,11 +87,10 @@ impl VecDB {
             Some(d) => {
                 if dim != d {
                     return Err("Different dimension".to_string());
-                } 
+                }
             }
         }
 
-        
         let norm_vec = l2_norm(&vector);
         match norm_vec {
             Ok(res) => {
@@ -92,7 +98,7 @@ impl VecDB {
                 if let Some(index) = self.ids.iter().position(|x| x == &id) {
                     // Update existing vector
                     let start = index * dim;
-                    self.vectors.splice(start..start+dim, res.iter().cloned());
+                    self.vectors.splice(start..start + dim, res.iter().cloned());
                     return Ok(format!("Updated vector with id: {}", id));
                 }
                 self.ids.push(id);
@@ -139,27 +145,28 @@ impl VecDB {
     /// assert_eq!(results[0].0, "vec1"); // Most similar
     /// assert!((results[0].2 - 1.0).abs() < 0.01); // Similarity ~1.0
     /// ```
-    pub fn search(&self, query: Vec<f32>, top_k: usize) -> Result<Vec<(String, Vec<f32>, f32)>, String> {
+    pub fn search(
+        &self,
+        query: Vec<f32>,
+        top_k: usize,
+    ) -> Result<Vec<(String, Vec<f32>, f32)>, String> {
         if self.dimension.is_none() {
             return Err("Empty database".to_string());
         } else if query.len() != self.dimension.unwrap() {
             return Err("Wrong query dimension".to_string());
         }
 
-        let norm_q = match l2_norm(&query) {
-            Ok(res) => res,
-            Err(msg) => {
-                return Err(msg)
-            },
-        };
+        let norm_q = l2_norm(&query)?;
 
-        if top_k >= self.ids.len(){
+        if top_k >= self.ids.len() {
             let mut remain = Vec::new();
             for i in 0..self.ids.len() {
                 remain.push(self.get_vector(i));
             }
 
-            let result = self.ids.iter()
+            let result = self
+                .ids
+                .iter()
                 .zip(remain.iter())
                 .map(|(i, v)| (i.clone(), v.to_vec(), dot_product(v, &norm_q).unwrap()))
                 .collect();
@@ -167,7 +174,7 @@ impl VecDB {
             return Ok(result);
         }
 
-        let mut dps: Vec<(usize, f32)> = vec![(top_k-1, f32::NEG_INFINITY); top_k];
+        let mut dps: Vec<(usize, f32)> = vec![(top_k - 1, f32::NEG_INFINITY); top_k];
         for i in 0..self.ids.len() {
             let sim = dot_product(self.get_vector(i), &norm_q).unwrap();
             let insert_index = dps.partition_point(|&x| x.1 > sim);
@@ -175,13 +182,12 @@ impl VecDB {
             dps.truncate(top_k);
         }
 
-        let result = dps.iter()
+        let result = dps
+            .iter()
             .map(|(i, dp)| (self.ids[*i].clone(), self.get_vector(*i).to_vec(), *dp))
             .collect();
 
         Ok(result)
-
-
     }
 
     /// Retrieves a vector by its ID.
@@ -216,15 +222,13 @@ impl VecDB {
     /// assert!(vec.is_none());
     /// ```
     pub fn get(&self, id: &str) -> Option<Vec<f32>> {
-        if self.dimension.is_none() {
-            return None;
-        }
+        self.dimension?;
 
         for i in 0..self.ids.len() {
             if self.ids[i] == id {
                 return Some(self.get_vector(i).to_vec());
             }
-        }        
+        }
 
         None
     }
@@ -269,8 +273,8 @@ impl VecDB {
         for i in 0..self.ids.len() {
             if self.ids[i] == id {
                 self.vectors.splice(
-                    (i * self.dimension.unwrap())..((i+1) * self.dimension.unwrap()),
-                    std::iter::empty()
+                    (i * self.dimension.unwrap())..((i + 1) * self.dimension.unwrap()),
+                    std::iter::empty(),
                 );
                 self.ids.remove(i);
                 return Ok("Success Delete".to_string());
@@ -328,7 +332,7 @@ impl VecDB {
     /// Panics if the dimension is `None` or if the index is out of bounds.
     fn get_vector(&self, index: usize) -> &[f32] {
         let start = index * self.dimension.unwrap();
-        &self.vectors[start..start+self.dimension.unwrap()]
+        &self.vectors[start..start + self.dimension.unwrap()]
     }
 
     /// Saves the database to a file using bincode serialization.
@@ -361,7 +365,7 @@ impl VecDB {
         let writer = BufWriter::new(file);
         bincode::serialize_into(writer, self)
             .map_err(|e| format!("Serialization failed: {}", e))?;
-    
+
         Ok(())
     }
 
@@ -401,7 +405,6 @@ impl VecDB {
             .map_err(|e| format!("Deserialization failed: {}", e))?;
 
         Ok(db)
-    
     }
 }
 
@@ -547,7 +550,6 @@ mod db_test {
         let result = db.get("vec1");
         assert!(result.is_none());
     }
-
 
     // ========== Delete Tests ==========
 

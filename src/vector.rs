@@ -9,21 +9,15 @@ pub fn l2_norm(vector: &[f32]) -> Result<Vec<f32>, String> {
         return Err("Cannot normalize an empty vector".to_string());
     }
 
-    let norm = vector.iter()
-        .map(|x| x * x)
-        .sum::<f32>()
-        .sqrt();
+    let norm = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
 
     if norm == 0.0 {
         return Err("Cannot normalize a zero vector".to_string());
     }
 
-    let normed_vec = vector.iter()
-        .map(|x| x / norm)
-        .collect();
+    let normed_vec = vector.iter().map(|x| x / norm).collect();
 
     Ok(normed_vec)
-
 }
 
 /// Dot Product
@@ -34,10 +28,7 @@ pub fn dot_product(left: &[f32], right: &[f32]) -> Result<f32, String> {
         return Err("Different dimentions".to_string());
     }
 
-    let dot_prod = left.iter()
-        .zip(right.iter())
-        .map(|(x, y)| x * y)
-        .sum();
+    let dot_prod = left.iter().zip(right.iter()).map(|(x, y)| x * y).sum();
 
     Ok(dot_prod)
 }
@@ -134,7 +125,7 @@ mod vector_test {
     #[test]
     fn test_dot_product_dimension_mismatch() {
         let a = vec![1.0, 2.0, 3.0];
-        let b = vec![4.0, 5.0];  // Different dimension
+        let b = vec![4.0, 5.0]; // Different dimension
 
         let result = dot_product(&a, &b);
         assert!(result.is_err());

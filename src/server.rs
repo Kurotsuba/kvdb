@@ -25,11 +25,10 @@
 //! }
 //! ```
 
-use actix_web::{web, HttpResponse, Responder};
-use serde::{Serialize, Deserialize};
 use crate::VecDB;
+use actix_web::{HttpResponse, Responder, web};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
-
 
 // --- Request structs ---
 
@@ -126,7 +125,6 @@ struct DeleteResult {
     message: String,
 }
 
-
 /// Helper function for load or create database
 fn load_or_create(path: &str) -> Result<VecDB, String> {
     if Path::new(path).exists() {
@@ -170,7 +168,7 @@ async fn insert_handler(body: web::Json<InsertRequest>) -> impl Responder {
     if let Err(e) = db.save(&body.db) {
         return HttpResponse::InternalServerError().json(serde_json::json!({"error": e}));
     }
-    
+
     HttpResponse::Ok().json(InsertResponse { inserted, results })
 }
 
@@ -180,32 +178,33 @@ async fn search_handler(body: web::Json<SearchRequest>) -> impl Responder {
         Ok(db) => db,
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": e})),
     };
-    
+
     let mut results = Vec::new();
-    
+
     for entry in &body.queries {
         match db.search(entry.value.clone(), entry.top_k) {
             Ok(res) => {
-                results.push(SearchResultGroup { 
-                    matches: res.iter()
-                    .map(|(id, vec, score)| MatchResult {
-                        id: id.clone(),
-                        score: *score,
-                        values: vec.clone(),
-                    })
-                    .collect(),
-                    message: "Search Success".to_string(), 
+                results.push(SearchResultGroup {
+                    matches: res
+                        .iter()
+                        .map(|(id, vec, score)| MatchResult {
+                            id: id.clone(),
+                            score: *score,
+                            values: vec.clone(),
+                        })
+                        .collect(),
+                    message: "Search Success".to_string(),
                 });
             }
-            Err(e ) => {
+            Err(e) => {
                 results.push(SearchResultGroup {
                     matches: Vec::new(),
-                    message: e, 
+                    message: e,
                 });
             }
         }
     }
-    
+
     HttpResponse::Ok().json(SearchResponse { results })
 }
 
@@ -214,16 +213,16 @@ async fn get_handler(body: web::Json<GetRequest>) -> impl Responder {
         Ok(db) => db,
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": e})),
     };
-    
+
     let mut results = Vec::new();
-    
+
     for entry in &body.ids {
         results.push(GetResult {
             id: entry.clone(),
             values: db.get(entry),
         });
     }
-    
+
     HttpResponse::Ok().json(GetResponse { results })
 }
 
@@ -232,10 +231,10 @@ async fn delete_handler(body: web::Json<DeleteRequest>) -> impl Responder {
         Ok(db) => db,
         Err(e) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": e})),
     };
-    
+
     let mut results = Vec::new();
     let mut deleted = 0;
-    
+
     for entry in &body.ids {
         match db.delete(entry) {
             Ok(msg) => {
@@ -246,28 +245,27 @@ async fn delete_handler(body: web::Json<DeleteRequest>) -> impl Responder {
                 });
 
                 deleted += 1;
-            },
+            }
             Err(e) => {
                 results.push(DeleteResult {
                     id: entry.clone(),
                     status: "Failed".to_string(),
                     message: e,
                 });
-            },
+            }
         }
     }
-    
+
     if let Err(e) = db.save(&body.db) {
         return HttpResponse::InternalServerError().json(serde_json::json!({"error": e}));
     }
-    
+
     HttpResponse::Ok().json(DeleteResponse { results, deleted })
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/insert").route(web::post().to(insert_handler)))
-       .service(web::resource("/search").route(web::post().to(search_handler)))
-       .service(web::resource("/get").route(web::post().to(get_handler)))
-       .service(web::resource("/delete").route(web::post().to(delete_handler)));
+        .service(web::resource("/search").route(web::post().to(search_handler)))
+        .service(web::resource("/get").route(web::post().to(get_handler)))
+        .service(web::resource("/delete").route(web::post().to(delete_handler)));
 }
-

@@ -10,16 +10,13 @@ async fn main() -> Result<(), std::io::Error> {
     if args.len() == 1 {
         let mut db = VecDB::new();
         cli::run_repl(&mut db);
+    } else if args[1] == "serve" {
+        HttpServer::new(|| App::new().configure(kvdb::server::config))
+            .bind("0.0.0.0:7878")?
+            .run()
+            .await?;
     } else {
-        if args[1] == "serve" {
-            HttpServer::new(|| App::new().configure(kvdb::server::config))
-                .bind("0.0.0.0:7878")?
-                .run()
-                .await?;
-            
-        } else {
-            cli::run_single_command();
-        }
+        cli::run_single_command();
     }
 
     Ok(())

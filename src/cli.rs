@@ -1,6 +1,6 @@
+use kvdb::VecDB;
 use std::env;
 use std::io::{self, Write};
-use kvdb::VecDB;
 
 pub enum Command {
     Insert { id: String, vec: Vec<f32> },
@@ -17,21 +17,27 @@ pub enum Command {
 /// This is used both for command-line args and REPL input
 pub fn parse_command_from_args(args: &[String]) -> Result<Command, String> {
     if args.len() < 2 {
-        return Err("No command provided. Use: get, insert, search, list, count, delete, save, load".to_string());
+        return Err(
+            "No command provided. Use: get, insert, search, list, count, delete, save, load"
+                .to_string(),
+        );
     }
 
     let command = &args[1];
 
     match command.as_str() {
-        "get" => parse_get(&args),
-        "insert" => parse_insert(&args),
-        "search" => parse_search(&args),
-        "list" => parse_list(&args),
-        "count" => parse_count(&args),
-        "delete" => parse_delete(&args),
-        "save" => parse_save(&args),
-        "load" => parse_load(&args),
-        _ => Err(format!("Unknown command: {}. Available: get, insert, search, list, count, delete, save, load", command)),
+        "get" => parse_get(args),
+        "insert" => parse_insert(args),
+        "search" => parse_search(args),
+        "list" => parse_list(args),
+        "count" => parse_count(args),
+        "delete" => parse_delete(args),
+        "save" => parse_save(args),
+        "load" => parse_load(args),
+        _ => Err(format!(
+            "Unknown command: {}. Available: get, insert, search, list, count, delete, save, load",
+            command
+        )),
     }
 }
 
@@ -43,19 +49,19 @@ fn parse_insert(args: &[String]) -> Result<Command, String> {
     // args[2] = id (required)
     // args[3..] = vector (required, at least 1)
     if args.len() < 4 {
-        return Err("'insert' command requires an ID and a vector. Usage: kvdb insert <id> <vector>".to_string());
+        return Err(
+            "'insert' command requires an ID and a vector. Usage: kvdb insert <id> <vector>"
+                .to_string(),
+        );
     }
 
     let id = args[2].clone();
-    let vec: Result<Vec<f32>, _> = args[3..].iter()
-        .map(|s| s.parse::<f32>())
-        .collect();
+    let vec: Result<Vec<f32>, _> = args[3..].iter().map(|s| s.parse::<f32>()).collect();
 
     match vec {
         Ok(v) => Ok(Command::Insert { id, vec: v }),
         Err(_) => Err("Vector parsing error".to_string()),
     }
-    
 }
 
 /// Parse the 'search' command
@@ -81,13 +87,17 @@ fn parse_search(args: &[String]) -> Result<Command, String> {
                 vector_end = args.len() - 2; // Exclude --k_top and the number
             }
             Err(_) => {
-                return Err(format!("Invalid --k_top value: '{}'. Must be a positive integer.", args[args.len() - 1]));
+                return Err(format!(
+                    "Invalid --k_top value: '{}'. Must be a positive integer.",
+                    args[args.len() - 1]
+                ));
             }
         }
     }
 
     // Parse vector components from args[2] to vector_end
-    let vec: Result<Vec<f32>, _> = args[2..vector_end].iter()
+    let vec: Result<Vec<f32>, _> = args[2..vector_end]
+        .iter()
         .map(|s| s.parse::<f32>())
         .collect();
 
@@ -270,12 +280,10 @@ pub fn run_single_command() {
 
 fn execute_command(db: &mut VecDB, command: Command) {
     match command {
-        Command::Get { id } => {
-            match db.get(&id) {
-                Some(vector) => println!("Vector '{}': {:?}", id, vector),
-                None => eprintln!("Error: Vector '{}' not found", id),
-            }
-        }
+        Command::Get { id } => match db.get(&id) {
+            Some(vector) => println!("Vector '{}': {:?}", id, vector),
+            None => eprintln!("Error: Vector '{}' not found", id),
+        },
 
         Command::List => {
             let vectors = db.list();
@@ -292,54 +300,49 @@ fn execute_command(db: &mut VecDB, command: Command) {
 
         Command::Count => println!("{}", db.count()),
 
-        Command::Insert { id, vec } => {
-            match db.insert(id.clone(), vec) {
-                Ok(message) => println!("{}", message),
-                Err(error) => eprintln!("Error: {}", error),
-            }
-        }
+        Command::Insert { id, vec } => match db.insert(id.clone(), vec) {
+            Ok(message) => println!("{}", message),
+            Err(error) => eprintln!("Error: {}", error),
+        },
 
-        Command::Search { vec, k_top } => {
-            match db.search(vec, k_top) {
-                Ok(results) => {
-                    if results.is_empty() {
-                        println!("No results found");
-                    } else {
-                        println!("Top {} results:", results.len());
-                        for (rank, (id, vector, score)) in results.iter().enumerate() {
-                            println!("{}. ID: {}, Score: {:.4}, Vector: {:?}",
-                                rank + 1, id, score, vector);
-                        }
+        Command::Search { vec, k_top } => match db.search(vec, k_top) {
+            Ok(results) => {
+                if results.is_empty() {
+                    println!("No results found");
+                } else {
+                    println!("Top {} results:", results.len());
+                    for (rank, (id, vector, score)) in results.iter().enumerate() {
+                        println!(
+                            "{}. ID: {}, Score: {:.4}, Vector: {:?}",
+                            rank + 1,
+                            id,
+                            score,
+                            vector
+                        );
                     }
                 }
-                Err(error) => eprintln!("Error: {}", error),
             }
-        }
+            Err(error) => eprintln!("Error: {}", error),
+        },
 
-        Command::Delete { id } => {
-            match db.delete(&id) {
-                Ok(message) => println!("{}", message),
-                Err(error) => eprintln!("Error: {}", error),
-            }
-        }
+        Command::Delete { id } => match db.delete(&id) {
+            Ok(message) => println!("{}", message),
+            Err(error) => eprintln!("Error: {}", error),
+        },
 
-        Command::Save { path } => {
-            match db.save(&path) {
-                Ok(()) => println!("Database saved to '{}'", path),
-                Err(error) => eprintln!("Error: {}", error),
-            }
-        }
+        Command::Save { path } => match db.save(&path) {
+            Ok(()) => println!("Database saved to '{}'", path),
+            Err(error) => eprintln!("Error: {}", error),
+        },
 
-        Command::Load { path } => {
-            match VecDB::load(&path) {
-                Ok(loaded_db) => {
-                    let count = loaded_db.count();
-                    *db = loaded_db;
-                    println!("Database loaded from '{}' ({} vectors)", path, count);
-                }
-                Err(error) => eprintln!("Error: {}", error),
+        Command::Load { path } => match VecDB::load(&path) {
+            Ok(loaded_db) => {
+                let count = loaded_db.count();
+                *db = loaded_db;
+                println!("Database loaded from '{}' ({} vectors)", path, count);
             }
-        }
+            Err(error) => eprintln!("Error: {}", error),
+        },
     }
 }
 

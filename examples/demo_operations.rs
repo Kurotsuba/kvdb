@@ -18,21 +18,28 @@ fn main() {
     // Load existing demo.db
     println!("Loading '{}'...", path);
     let start = Instant::now();
-    let mut db = VecDB::load(path).expect("Failed to load demo.db. Run `cargo run --release --example gen_demo` first.");
-    println!("Loaded {} vectors in {:.3}s\n", db.count(), start.elapsed().as_secs_f64());
+    let mut db = VecDB::load(path)
+        .expect("Failed to load demo.db. Run `cargo run --release --example gen_demo` first.");
+    println!(
+        "Loaded {} vectors in {:.3}s\n",
+        db.count(),
+        start.elapsed().as_secs_f64()
+    );
 
     // === Phase 1: 10 searches (before modifications) ===
     println!("=== Phase 1: 10 Searches (before modifications) ===\n");
-    let search_queries: Vec<Vec<f32>> = (0..10)
-        .map(|i| random_vector(dim, 900_000 + i))
-        .collect();
+    let search_queries: Vec<Vec<f32>> = (0..10).map(|i| random_vector(dim, 900_000 + i)).collect();
 
     for (i, query) in search_queries.iter().enumerate() {
         let start = Instant::now();
         let results = db.search(query.clone(), 5).unwrap();
         let elapsed = start.elapsed();
 
-        println!("Search {}/10 ({:.3}ms):", i + 1, elapsed.as_secs_f64() * 1000.0);
+        println!(
+            "Search {}/10 ({:.3}ms):",
+            i + 1,
+            elapsed.as_secs_f64() * 1000.0
+        );
         for (rank, (id, _vec, score)) in results.iter().enumerate() {
             println!("  {}. {} (score: {:.6})", rank + 1, id, score);
         }
@@ -48,7 +55,13 @@ fn main() {
         let start = Instant::now();
         let result = db.insert(id.clone(), vec).unwrap();
         let elapsed = start.elapsed();
-        println!("Insert {}/10: {} - {} ({:.3}ms)", i + 1, id, result, elapsed.as_secs_f64() * 1000.0);
+        println!(
+            "Insert {}/10: {} - {} ({:.3}ms)",
+            i + 1,
+            id,
+            result,
+            elapsed.as_secs_f64() * 1000.0
+        );
     }
     println!("\nCount: {} -> {}\n", count_before, db.count());
 
@@ -61,8 +74,20 @@ fn main() {
         let result = db.delete(&id);
         let elapsed = start.elapsed();
         match result {
-            Ok(msg) => println!("Delete {}/10: {} - {} ({:.3}ms)", i + 1, id, msg, elapsed.as_secs_f64() * 1000.0),
-            Err(err) => println!("Delete {}/10: {} - Error: {} ({:.3}ms)", i + 1, id, err, elapsed.as_secs_f64() * 1000.0),
+            Ok(msg) => println!(
+                "Delete {}/10: {} - {} ({:.3}ms)",
+                i + 1,
+                id,
+                msg,
+                elapsed.as_secs_f64() * 1000.0
+            ),
+            Err(err) => println!(
+                "Delete {}/10: {} - Error: {} ({:.3}ms)",
+                i + 1,
+                id,
+                err,
+                elapsed.as_secs_f64() * 1000.0
+            ),
         }
     }
     println!("\nCount: {} -> {}\n", count_before, db.count());
@@ -75,7 +100,11 @@ fn main() {
         let results = db.search(query.clone(), 5).unwrap();
         let elapsed = start.elapsed();
 
-        println!("Search {}/10 ({:.3}ms):", i + 1, elapsed.as_secs_f64() * 1000.0);
+        println!(
+            "Search {}/10 ({:.3}ms):",
+            i + 1,
+            elapsed.as_secs_f64() * 1000.0
+        );
         for (rank, (id, _vec, score)) in results.iter().enumerate() {
             println!("  {}. {} (score: {:.6})", rank + 1, id, score);
         }

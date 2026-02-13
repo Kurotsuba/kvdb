@@ -21,7 +21,10 @@ fn test_save_load_10k_vectors_and_search() {
     let num_searches = 100;
 
     println!("\n=== Persistence E2E Test ===");
-    println!("Vectors: {}, Dimensions: {}, Searches: {}\n", num_vectors, dim, num_searches);
+    println!(
+        "Vectors: {}, Dimensions: {}, Searches: {}\n",
+        num_vectors, dim, num_searches
+    );
 
     // Phase 1: Create DB and insert 10K vectors
     let start = Instant::now();
@@ -32,9 +35,12 @@ fn test_save_load_10k_vectors_and_search() {
     }
     let insert_time = start.elapsed();
     assert_eq!(db.count(), num_vectors);
-    println!("Phase 1 - Insert {} vectors: {:.3}s ({:.0} inserts/s)",
-        num_vectors, insert_time.as_secs_f64(),
-        num_vectors as f64 / insert_time.as_secs_f64());
+    println!(
+        "Phase 1 - Insert {} vectors: {:.3}s ({:.0} inserts/s)",
+        num_vectors,
+        insert_time.as_secs_f64(),
+        num_vectors as f64 / insert_time.as_secs_f64()
+    );
 
     // Phase 2: Save to file
     let start = Instant::now();
@@ -43,8 +49,11 @@ fn test_save_load_10k_vectors_and_search() {
     db.save(path).unwrap();
     let save_time = start.elapsed();
     let file_size = std::fs::metadata(path).unwrap().len();
-    println!("Phase 2 - Save to disk: {:.3}s (file size: {:.2} MB)",
-        save_time.as_secs_f64(), file_size as f64 / 1_048_576.0);
+    println!(
+        "Phase 2 - Save to disk: {:.3}s (file size: {:.2} MB)",
+        save_time.as_secs_f64(),
+        file_size as f64 / 1_048_576.0
+    );
 
     // Phase 3: Drop current DB
     let start = Instant::now();
@@ -72,7 +81,10 @@ fn test_save_load_10k_vectors_and_search() {
         }
     }
     let search_time = start.elapsed();
-    println!("Phase 5 - {} searches: {:.3}s (avg {:.3}ms/search)\n",
-        num_searches, search_time.as_secs_f64(),
-        search_time.as_secs_f64() / num_searches as f64 * 1000.0);
+    println!(
+        "Phase 5 - {} searches: {:.3}s (avg {:.3}ms/search)\n",
+        num_searches,
+        search_time.as_secs_f64(),
+        search_time.as_secs_f64() / num_searches as f64 * 1000.0
+    );
 }

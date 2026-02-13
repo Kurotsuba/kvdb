@@ -4,7 +4,7 @@ use std::time::Instant;
 use candle_core::{Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{Repo, RepoType, api::sync::Api};
 use tokenizers::{PaddingParams, Tokenizer, TruncationParams};
 
 const MODEL_ID: &str = "BAAI/bge-base-en-v1.5";
@@ -24,10 +24,7 @@ fn load_wikipedia_pages(path: &str) -> Vec<WikiPage> {
     serde_json::from_str(&data).expect("Failed to parse JSON")
 }
 
-fn mean_pooling(
-    hidden_states: &Tensor,
-    attention_mask: &Tensor,
-) -> candle_core::Result<Tensor> {
+fn mean_pooling(hidden_states: &Tensor, attention_mask: &Tensor) -> candle_core::Result<Tensor> {
     let mask_expanded = attention_mask
         .unsqueeze(2)?
         .broadcast_as(hidden_states.shape())?
@@ -54,7 +51,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Phase 1: Loading Wikipedia pages from '{}'...", INPUT_FILE);
     let start = Instant::now();
     let pages = load_wikipedia_pages(INPUT_FILE);
-    println!("  Loaded {} pages in {:.3}s\n", pages.len(), start.elapsed().as_secs_f64());
+    println!(
+        "  Loaded {} pages in {:.3}s\n",
+        pages.len(),
+        start.elapsed().as_secs_f64()
+    );
 
     // Phase 2: Load model and tokenizer from HuggingFace Hub
     println!("Phase 2: Loading model '{}'...", MODEL_ID);
@@ -72,10 +73,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set up padding and truncation for batch processing
     tokenizer.with_padding(Some(PaddingParams::default()));
-    tokenizer.with_truncation(Some(TruncationParams {
-        max_length: 128,
-        ..Default::default()
-    })).map_err(|e| e.to_string())?;
+    tokenizer
+        .with_truncation(Some(TruncationParams {
+            max_length: 128,
+            ..Default::default()
+        }))
+        .map_err(|e| e.to_string())?;
 
     let vb = unsafe {
         VarBuilder::from_mmaped_safetensors(&[weights_path], candle_core::DType::F32, &device)?
@@ -85,7 +88,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Model loaded in {:.3}s\n", start.elapsed().as_secs_f64());
 
     // Phase 3: Embed title+description in batches
-    println!("Phase 3: Embedding {} pages (batch_size={})...", pages.len(), BATCH_SIZE);
+    println!(
+        "Phase 3: Embedding {} pages (batch_size={})...",
+        pages.len(),
+        BATCH_SIZE
+    );
     let start = Instant::now();
     let mut db = VecDB::new();
     let total_batches = (pages.len() + BATCH_SIZE - 1) / BATCH_SIZE;
@@ -103,14 +110,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| e.to_string())?;
 
         let token_ids: Vec<&[u32]> = encodings.iter().map(|e| e.get_ids()).collect();
-        let attention_masks: Vec<&[u32]> = encodings.iter().map(|e| e.get_attention_mask()).collect();
+        let attention_masks: Vec<&[u32]> =
+            encodings.iter().map(|e| e.get_attention_mask()).collect();
 
         let batch_len = token_ids.len();
         let seq_len = token_ids[0].len();
 
         // Create tensors
-        let token_ids_flat: Vec<u32> = token_ids.iter().flat_map(|ids| ids.iter().copied()).collect();
-        let mask_flat: Vec<u32> = attention_masks.iter().flat_map(|m| m.iter().copied()).collect();
+        let token_ids_flat: Vec<u32> = token_ids
+            .iter()
+            .flat_map(|ids| ids.iter().copied())
+            .collect();
+        let mask_flat: Vec<u32> = attention_masks
+            .iter()
+            .flat_map(|m| m.iter().copied())
+            .collect();
 
         let token_ids_tensor = Tensor::from_vec(token_ids_flat, (batch_len, seq_len), &device)?;
         let attention_mask_tensor = Tensor::from_vec(mask_flat, (batch_len, seq_len), &device)?;
@@ -140,7 +154,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let rate = done as f64 / elapsed;
             println!(
                 "  Batch {}/{}: {}/{} pages ({:.0} pages/s, elapsed {:.1}s)",
-                batch_idx + 1, total_batches, done, pages.len(), rate, elapsed
+                batch_idx + 1,
+                total_batches,
+                done,
+                pages.len(),
+                rate,
+                elapsed
             );
         }
     }

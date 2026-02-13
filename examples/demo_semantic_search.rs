@@ -4,16 +4,13 @@ use std::time::Instant;
 use candle_core::{Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{Repo, RepoType, api::sync::Api};
 use tokenizers::Tokenizer;
 
 const MODEL_ID: &str = "BAAI/bge-base-en-v1.5";
 const DB_FILE: &str = "wikipedia.db";
 
-fn mean_pooling(
-    hidden_states: &Tensor,
-    attention_mask: &Tensor,
-) -> candle_core::Result<Tensor> {
+fn mean_pooling(hidden_states: &Tensor, attention_mask: &Tensor) -> candle_core::Result<Tensor> {
     let mask_expanded = attention_mask
         .unsqueeze(2)?
         .broadcast_as(hidden_states.shape())?
@@ -63,11 +60,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading database...");
     let start = Instant::now();
     let db = VecDB::load(DB_FILE)?;
-    println!("Loaded {} vectors in {:.3}s\n", db.count(), start.elapsed().as_secs_f64());
+    println!(
+        "Loaded {} vectors in {:.3}s\n",
+        db.count(),
+        start.elapsed().as_secs_f64()
+    );
 
     // Embed query
     let start = Instant::now();
-    let encoding = tokenizer.encode(query.as_str(), true).map_err(|e| e.to_string())?;
+    let encoding = tokenizer
+        .encode(query.as_str(), true)
+        .map_err(|e| e.to_string())?;
     let ids = Tensor::from_vec(
         encoding.get_ids().to_vec(),
         (1, encoding.get_ids().len()),
