@@ -1,3 +1,30 @@
+//! REST API for kvdb.
+//!
+//! Provides a stateless HTTP server with JSON endpoints for vector operations.
+//! Each request includes a `db` field specifying the database file path.
+//! The server loads the database from disk per request and saves after mutations.
+//!
+//! ## Endpoints
+//!
+//! - `POST /insert` - Insert or update vectors
+//! - `POST /search` - Search for similar vectors
+//! - `POST /get` - Retrieve vectors by ID
+//! - `POST /delete` - Delete vectors by ID
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use actix_web::{App, HttpServer};
+//!
+//! #[actix_web::main]
+//! async fn main() -> std::io::Result<()> {
+//!     HttpServer::new(|| App::new().configure(kvdb::server::config))
+//!         .bind("0.0.0.0:7878")?
+//!         .run()
+//!         .await
+//! }
+//! ```
+
 use actix_web::{web, HttpResponse, Responder};
 use serde::{Serialize, Deserialize};
 use crate::VecDB;

@@ -23,7 +23,7 @@ fn test_save_load_10k_vectors_and_search() {
     println!("\n=== Persistence E2E Test ===");
     println!("Vectors: {}, Dimensions: {}, Searches: {}\n", num_vectors, dim, num_searches);
 
-    // Phase 1: Create DB and insert 100K vectors
+    // Phase 1: Create DB and insert 10K vectors
     let start = Instant::now();
     let mut db = VecDB::new();
     for i in 0..num_vectors {
