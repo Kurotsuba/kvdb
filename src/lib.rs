@@ -22,6 +22,7 @@
 //! ```
 
 pub mod vector;
+pub mod server;
 mod db;
 
 // Re-export VecDB as the primary public API

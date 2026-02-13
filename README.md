@@ -6,7 +6,7 @@ A simple, learning-focused vector database implementation in Rust. **Kantan** (�
 
 kvdb is an educational project that implements a working vector database from scratch. It demonstrates fundamental concepts like vector normalization, similarity search, and persistent storage - perfect for learning how vector databases work under the hood.
 
-**Current Status**: v2.0 - Persistent storage with bincode serialization
+**Current Status**: v3.0 - REST API with Actix-web
 
 ## Features
 
@@ -14,8 +14,9 @@ kvdb is an educational project that implements a working vector database from sc
 - **Cosine Similarity Search**: Using dot product on normalized vectors
 - **Flat Array Storage**: Memory-efficient contiguous storage with excellent cache locality
 - **Persistence**: Save/load databases to disk with bincode binary format
+- **REST API**: Stateless HTTP API with insert, search, get, delete endpoints
 - **Library-First Architecture**: Core logic separated from interface for future extensibility
-- **Comprehensive Testing**: Unit tests + end-to-end persistence tests
+- **Comprehensive Testing**: Unit tests + API integration tests + end-to-end persistence tests
 
 ## Installation
 
@@ -97,6 +98,51 @@ kvdb> exit
 ./target/release/kvdb data.db list
 ```
 
+## REST API
+
+Start the server:
+```bash
+./target/release/kvdb serve
+# Server listens on 0.0.0.0:7878
+```
+
+All endpoints are `POST` with JSON bodies. Each request includes a `"db"` field specifying the database file path. The server is stateless — it loads the database from disk on each request and saves after mutations.
+
+### `POST /insert`
+```bash
+curl -X POST http://localhost:7878/insert \
+  -H "Content-Type: application/json" \
+  -d '{"db":"mydata.db", "vectors":[
+    {"id":"vec1", "values":[1.0, 0.0, 0.0]},
+    {"id":"vec2", "values":[0.0, 1.0, 0.0]}
+  ]}'
+```
+Response: `{"inserted": 2, "results": [{"id":"vec1", "status":"ok", "message":"..."}, ...]}`
+
+### `POST /search`
+```bash
+curl -X POST http://localhost:7878/search \
+  -H "Content-Type: application/json" \
+  -d '{"db":"mydata.db", "queries":[{"value":[1.0, 0.0, 0.0], "top_k":3}]}'
+```
+Response: `{"results": [{"matches": [{"id":"vec1", "score":1.0, "values":[...]}], "message":"..."}]}`
+
+### `POST /get`
+```bash
+curl -X POST http://localhost:7878/get \
+  -H "Content-Type: application/json" \
+  -d '{"db":"mydata.db", "ids":["vec1", "vec2"]}'
+```
+Response: `{"results": [{"id":"vec1", "values":[1.0, 0.0, 0.0]}, {"id":"missing", "values":null}]}`
+
+### `POST /delete`
+```bash
+curl -X POST http://localhost:7878/delete \
+  -H "Content-Type: application/json" \
+  -d '{"db":"mydata.db", "ids":["vec1"]}'
+```
+Response: `{"deleted": 1, "results": [{"id":"vec1", "status":"Success", "message":"..."}]}`
+
 ## Architecture
 
 ```
@@ -104,6 +150,7 @@ src/
 ├── lib.rs       # Public API (VecDB)
 ├── vector.rs    # Vector math (L2 norm, dot product)
 ├── db.rs        # Core database logic + persistence
+├── server.rs    # REST API handlers + route config
 ├── cli.rs       # CLI parsing, REPL, command execution
 └── main.rs      # Entry point
 ```
@@ -168,13 +215,11 @@ cargo run --release --example demo_semantic_search -- "famous physicist"
 - [x] L2 normalization + cosine similarity
 - [x] REPL and CLI modes
 - [x] Persistence (bincode serialization)
+- [x] REST API with Actix-web
+- [x] JSON request/response
+- [x] API integration tests
 
 ### TODO
-
-**v3.0 - HTTP API**
-- [ ] REST API with Axum/Actix
-- [ ] JSON request/response
-- [ ] Concurrent request handling
 
 **v4.0 - Optimizations**
 - [ ] HNSW indexing

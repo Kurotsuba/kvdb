@@ -17,7 +17,7 @@ fn random_vector(dim: usize, seed: u64) -> Vec<f32> {
 #[test]
 fn test_save_load_10k_vectors_and_search() {
     let dim = 786;
-    let num_vectors = 100_000;
+    let num_vectors = 10_000;
     let num_searches = 100;
 
     println!("\n=== Persistence E2E Test ===");
