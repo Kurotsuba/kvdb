@@ -3,7 +3,7 @@
 Benchmark script for KVDB vector database.
 
 This script:
-1. Generates 1000 random 100-dimensional vectors
+1. Generates 100000 random 786-dimensional vectors
 2. Inserts them into the database
 3. Performs a search with a random query vector
 4. Reports timing information
@@ -36,12 +36,12 @@ def main():
     print()
 
     # Check if binary exists
-    try:
-        subprocess.run([BINARY_PATH, "count"], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print(f"Error: Could not find binary at {BINARY_PATH}")
-        print("Please build the project first: cargo build --release")
-        sys.exit(1)
+    # try:
+    #     subprocess.run([BINARY_PATH, "count"], capture_output=True, check=True)
+    # except (subprocess.CalledProcessError, FileNotFoundError):
+    #     print(f"Error: Could not find binary at {BINARY_PATH}")
+    #     print("Please build the project first: cargo build --release")
+    #     sys.exit(1)
 
     # Generate random vectors
     print("Generating random vectors...")

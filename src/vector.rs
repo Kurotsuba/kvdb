@@ -5,6 +5,11 @@
 /// norm_vec = vec / ||vec||
 /// Zero vector cannot be normalized
 pub fn l2_norm(vector: &[f32]) -> Result<Vec<f32>, String> {
+    l2_norm_plain(vector)
+}
+
+
+fn l2_norm_plain(vector: &[f32]) -> Result<Vec<f32>, String> {
     if vector.is_empty() {
         return Err("Cannot normalize an empty vector".to_string());
     }
@@ -27,11 +32,66 @@ pub fn dot_product(left: &[f32], right: &[f32]) -> Result<f32, String> {
     if left.len() != right.len() {
         return Err("Different dimentions".to_string());
     }
+    
+    // For avx2 arch optimization
+    #[cfg(target_arch = "x86_64")]
+    if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma"){
+        return unsafe {
+            dot_product_avx2(left, right)
+        }
+    }
 
+    // Fallback
+    dot_product_plain(left, right)
+}
+
+fn dot_product_plain(left: &[f32], right: &[f32]) -> Result<f32, String> {
     let dot_prod = left.iter().zip(right.iter()).map(|(x, y)| x * y).sum();
-
     Ok(dot_prod)
 }
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn dot_product_avx2(left: &[f32], right: &[f32]) -> Result<f32, String> {
+    use std::arch::x86_64::*;
+
+    let len = left.len();
+    let chunks = len / 8;
+    let tail = len % 8;
+
+    let mut acc = _mm256_setzero_ps();
+
+    unsafe {
+        for i in 0 .. chunks {
+            let idx = i * 8;
+            let left8 = _mm256_loadu_ps(left.as_ptr().add(idx));
+            let right8 = _mm256_loadu_ps(right.as_ptr().add(idx));
+            acc = _mm256_fmadd_ps(left8, right8, acc);
+        }
+    }
+
+
+    let lo = _mm256_castps256_ps128(acc);
+    let hi = _mm256_extractf128_ps(acc, 1);
+    let sum128 = _mm_add_ps(lo, hi);
+
+    let shuf = _mm_movehdup_ps(sum128);
+    let sums = _mm_add_ps(sum128, shuf);
+
+    let shuf = _mm_movehl_ps(sums, sums);
+    let final_ = _mm_add_ss(sums, shuf);
+
+    let mut result = _mm_cvtss_f32(final_);
+
+    let tail_start = chunks * 8;
+    for i in 0..tail {
+        result += left[tail_start+i] * right[tail_start+i];
+    }
+
+    Ok(result)
+
+}
+
 
 #[cfg(test)]
 mod vector_test {
